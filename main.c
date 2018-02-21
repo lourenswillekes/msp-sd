@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "clock_driver.h"
 #include "fatfs/src/ff.h"
 #include "fatfs/src/diskio.h"
 #include "spiDriver.h"
@@ -105,10 +106,10 @@ StringFromFResult(FRESULT iFResult) {
  *               USCI_UART_Baud_Rate_Gen_Mode_Selection
  */
 const eUSCI_UART_Config uartConfig = {
-EUSCI_A_UART_CLOCKSOURCE_SMCLK,          // SMCLK Clock Source
-		26,                                      // BRDIV = 26
+        EUSCI_A_UART_CLOCKSOURCE_SMCLK,          // SMCLK Clock Source 12MHz
+		104,                                     // BRDIV = 104
 		0,                                       // UCxBRF = 0
-		0,                                       // UCxBRS = 0
+		1,                                       // UCxBRS = 1
 		EUSCI_A_UART_NO_PARITY,                  // No Parity
 		EUSCI_A_UART_LSB_FIRST,                  // MSB First
 		EUSCI_A_UART_ONE_STOP_BIT,               // One stop bit
@@ -120,7 +121,7 @@ void SysTick_ISR(void) {
 	// Call the FatFs tick timer.
 	disk_timerproc();
 
-	GPIO_toggleOutputOnPin(GPIO_PORT_P1, GPIO_PIN0);
+	MAP_GPIO_toggleOutputOnPin(GPIO_PORT_P1, GPIO_PIN0);
 }
 
 
@@ -135,38 +136,29 @@ int main(void) {
 	WDTCTL = WDTPW | WDTHOLD;                 // Stop WDT
 
 	/* Initialize main clock to 3MHz */
-	MAP_CS_setDCOCenteredFrequency(CS_DCO_FREQUENCY_3);
-	CS_initClockSignal(CS_MCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
-	CS_initClockSignal(CS_HSMCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
-	CS_initClockSignal(CS_SMCLK, CS_DCOCLK_SELECT, CS_CLOCK_DIVIDER_1);
+	clockInit48MHzXTL();
 
 	/* Selecting P1.0 as output (LED). */
 	MAP_GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P1,
 	GPIO_PIN0, GPIO_PRIMARY_MODULE_FUNCTION);
 
-	GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);
-	GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN0);
+	MAP_GPIO_setOutputLowOnPin(GPIO_PORT_P1, GPIO_PIN0);
+	MAP_GPIO_setAsOutputPin(GPIO_PORT_P1, GPIO_PIN0);
 
 	/* Selecting P1.2 and P1.3 in UART mode. */
 	MAP_GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P1,
 	GPIO_PIN2 | GPIO_PIN3, GPIO_PRIMARY_MODULE_FUNCTION);
 
-	/* Configuring UART Module */
+	// configure and enable uart
 	MAP_UART_initModule(EUSCI_A0_BASE, &uartConfig);
-
-	/* Enable UART module */
 	MAP_UART_enableModule(EUSCI_A0_BASE);
 
-	//UART_enableInterrupt(EUSCI_A0_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
-	//Interrupt_enableInterrupt(INT_EUSCIA0);
-	Interrupt_enableMaster();
+	MAP_Interrupt_enableMaster();
 
-	/* Configure SysTick for a 100Hz interrupt.  The FatFs driver wants a 10 ms
-	 * tick.
-	 */
-	SysTick_setPeriod(3000000 / 100);
-	SysTick_enableModule();
-	SysTick_enableInterrupt();
+	// Configure SysTick for a 100Hz.  The FatFs driver wants 10 ms tick.
+	MAP_SysTick_setPeriod(48000000 / 100);
+	MAP_SysTick_enableModule();
+	MAP_SysTick_enableInterrupt();
 
 	spi_Open();
 
@@ -179,21 +171,21 @@ int main(void) {
     iFResult = f_mount(0, &g_sFatFs);
     if (iFResult != FR_OK)
     {
-        printf("f_mount error: %s\n", StringFromFResult(iFResult));
+        printf("f_mount error: %s\n\r", StringFromFResult(iFResult));
     }
 
     // Open a new file in the fileobject
     iFResult = f_open(&g_sFileObject, "newFile1", FA_WRITE | FA_CREATE_ALWAYS);
     if (iFResult != FR_OK)
     {
-        printf("f_open error: %s\n", StringFromFResult(iFResult));
+        printf("f_open error: %s\n\r", StringFromFResult(iFResult));
     }
 
     // write a 16 byte string to the sd card
     iFResult = f_write(&g_sFileObject, "This is a test\r\n", 16, &writeBytes);
     if (iFResult != FR_OK)
     {
-        printf("f_write error: %s\n", StringFromFResult(iFResult));
+        printf("f_write error: %s\n\r", StringFromFResult(iFResult));
     }
 
     // print the number of characters written and close the file
@@ -201,21 +193,21 @@ int main(void) {
     iFResult = f_close(&g_sFileObject);
     if (iFResult != FR_OK)
     {
-        printf("f_close error: %s\n", StringFromFResult(iFResult));
+        printf("f_close error: %s\n\r", StringFromFResult(iFResult));
     }
 
     // open the file
     iFResult = f_open(&g_sFileObject, "newFile1", FA_READ);
     if (iFResult != FR_OK)
     {
-        printf("f_open error: %s\n", StringFromFResult(iFResult));
+        printf("f_open error: %s\n\r", StringFromFResult(iFResult));
     }
 
     // read a string from the file on the sd card
     iFResult = f_read(&g_sFileObject, g_pcTmpBuf, sizeof(g_pcTmpBuf) - 1, &readBytes);
     if (iFResult != FR_OK)
     {
-        printf("f_read error: %s\n", StringFromFResult(iFResult));
+        printf("f_read error: %s\n\r", StringFromFResult(iFResult));
     }
 
     // print the number of characters read and the line read
@@ -226,7 +218,7 @@ int main(void) {
     iFResult = f_close(&g_sFileObject);
     if (iFResult != FR_OK)
     {
-        printf("f_close error: %s\n", StringFromFResult(iFResult));
+        printf("f_close error: %s\n\r", StringFromFResult(iFResult));
     }
 
 }

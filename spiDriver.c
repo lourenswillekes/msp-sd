@@ -45,7 +45,7 @@
 const eUSCI_SPI_MasterConfig spiMasterConfig =
 {
         EUSCI_B_SPI_CLOCKSOURCE_SMCLK,             // SMCLK Clock Source
-        3000000,                                   // SMCLK 3Mhz
+        12000000,                                  // SMCLK 12Mhz
         500000,                                    // SPICLK = 500khz
         EUSCI_B_SPI_MSB_FIRST,                     // MSB First
         EUSCI_B_SPI_PHASE_DATA_CHANGED_ONFIRST_CAPTURED_ON_NEXT,    // Phase
@@ -73,7 +73,7 @@ Fd_t spi_Open(void)
     GPIO_setAsOutputPin(GPIO_PORT_P4, GPIO_PIN6);
 
     /* Configuring SPI in 3wire master mode */
-	SPI_initMaster(EUSCI_B0_BASE, &spiMasterConfig);
+	MAP_SPI_initMaster(EUSCI_B0_BASE, &spiMasterConfig);
 
 	/* Enable SPI module */
 	SPI_enableModule(EUSCI_B0_BASE);
